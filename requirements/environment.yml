@@ -1,0 +1,19 @@
+name: ba-conda
+channels:
+  - bioconda
+  - defaults
+dependencies:
+  - nextflow
+  - samtools
+  - vcflib
+  - numpy
+  - openjdk
+  - openssl
+  - pip
+  - python
+  - sqlite
+  - tk
+  - pip:
+    - cython
+    - pyvcf
+
