@@ -69,8 +69,8 @@ class InputFile:
                  filepath,
                  is_vcf=False,
                  is_tsv=False):
-        self.filepath = filepath
-        self.exists = os.path.exists(filepath)
+        self.filepath = os.path.abspath(filepath)
+        self.exists = os.path.exists(self.filepath)
         self.is_vcf = self._is_vcf_file()
         self.is_tsv = self._is_tsv_file()
 
@@ -113,6 +113,30 @@ class InputFileAction(argparse.Action):
 
         # add the object to the namespace
         setattr(namespace, self.dest, file)
+
+
+class OutdirAction(argparse.Action):
+    """
+    Handles outdirs mentionned as parameters
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        try:
+            if len(values) == 1:
+                outdir = values[0]
+                if os.path.exists(outdir):
+                    subdir = "Discavar"
+                    msg = "Outdir exists: {}".format(outdir) + \
+                          "Using {} instead".format(subdir)
+                    outdir = os.path.join(outdir, subdir)
+            else:
+                msg = "More than one output dir provided."
+                raise(parser.error(msg))
+        except RuntimeError:
+            parser.error()
+
+        # add to namespace
+        setattr(namespace, self.dest, outdir)
 
 
 class ChromRegionsAction(argparse.Action):
@@ -322,13 +346,13 @@ def parse_args(args=None):
         # filter options
         filter_group = subp.add_argument_group("Variant filter options")
         filter_group.add_argument(
-            "--quality-gt", type=float, nargs=1, dest="filter_gq",
+            "--quality-gt", type=float, dest="filter_gq",
             help="Filter variants below a quality score.")
         filter_group.add_argument(
-            "--mapping-qual", type=float, nargs=1, dest="filter_mq",
+            "--mapping-qual", type=float, dest="filter_mq",
             help="Filter variants below a given mapping quality")
         filter_group.add_argument(
-            "--read-depth", type=float, nargs=1, dest="filter_dp",
+            "--read-depth", type=float, dest="filter_dp",
             help="Filter variants with a read depth below the given threshold")
         filter_group.add_argument(
             "--regions", type=str, nargs="+",
@@ -375,18 +399,18 @@ def parse_args(args=None):
         intersection_group = subp.add_argument_group("Intersection and " +
                                                      "subtractionOptions")
         intersection_group.add_argument(
-            "--isec-alt-ratio", type=float, nargs=1, dest="alt_ratio",
+            "--isec-alt-ratio", type=float, dest="alt_ratio", default=0.9,
             help="Alternate allel ratio for computing intersections")
         intersection_group.add_argument(
-            "--isec-min-cr", type=float, nargs=1, dest="call_rate",
+            "--isec-min-cr", type=float, dest="call_rate", default=0.9,
             help="Minimum callrate for a record to be considered " +
                  "an intersection")
         intersection_group.add_argument(
-            "--sub-alt-ratio", type=float, nargs=1, dest="alt_ratio2",
+            "--sub-alt-ratio", type=float, dest="alt_ratio2", default=0.1,
             help="Maximum alternate allel ratio for the subtrahend group " +
             "when computing subtraction")
         intersection_group.add_argument(
-            "--sub-max-cr", type=float, nargs=1, dest="call_rate2",
+            "--sub-max-cr", type=float, dest="call_rate2", default=0.5,
             help="Maximum callrate for the subtrahend group when computing " +
             "subtraction")
 
@@ -394,14 +418,15 @@ def parse_args(args=None):
         output_group = subp.add_argument_group("Output options")
         output_group.add_argument(
             "-r", "--report-outdir", type=str, nargs=1,
-            dest="report_dir", default="DiscavarReports",
+            dest="report_dir", default="DiscavarReports", action=OutdirAction,
             help="Output directory for Reports.")
         output_group.add_argument(
             "-o", "--vcf-outdir", type=str, nargs=1,
-            dest="vcf_dir", default="Discavar",
+            dest="vcf_dir", default="Discavar", action=OutdirAction,
             help="Output Directory for VCF files.")
         output_group.add_argument(
             "--interactive", action="store_true", dest="interactive_report",
+            default=False,
             help="Export a JuPyter notebook with filtered vcf data. " +
             "NOT IMPLEMENTED")
 

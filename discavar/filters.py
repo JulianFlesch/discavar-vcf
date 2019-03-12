@@ -46,25 +46,28 @@ class AnnotationFilter:
         self.notin_rules = []
 
         for key, value in kwargs.items():
-            if key.split("__")[0] not in self.annotation_parser.fields:
-                warning("Unknown Annotation Field")
+            # only if a value is supplied set up filter rule
+            if value:
+                if key.split("__")[0] not in self.annotation_parser.fields:
+                    warning("Unknown Annotation Field")
 
-            if key.endswith(self.gt_suffix):
-                self.gt_rules.append((key.rstrip(self.gt_suffix), value))
-            elif key.endswith(self.ge_suffix):
-                self.ge_rules.append((key.rstrip(self.ge_suffix), value))
-            elif key.endswith(self.lt_suffix):
-                self.lt_rules.append((key.rstrip(self.lt_suffix), value))
-            elif key.endswith(self.le_suffix):
-                self.le_rules.append((key.rstrip(self.le_suffix), value))
-            elif key.endswith(self.eq_suffix):
-                self.eq_rules.append((key.rstrip(self.eq_suffix), value))
-            elif key.endswith(self.in_suffix):
-                self.in_rules.append((key.rstrip(self.in_suffix), value))
-            elif key.endswith(self.notin_suffix):
-                self.notin_rules.append((key.rstrip(self.notin_suffix), value))
-            else:
-                warning("Skipping: Invalid Filter operation.")
+                if key.endswith(self.gt_suffix):
+                    self.gt_rules.append((key.rstrip(self.gt_suffix), value))
+                elif key.endswith(self.ge_suffix):
+                    self.ge_rules.append((key.rstrip(self.ge_suffix), value))
+                elif key.endswith(self.lt_suffix):
+                    self.lt_rules.append((key.rstrip(self.lt_suffix), value))
+                elif key.endswith(self.le_suffix):
+                    self.le_rules.append((key.rstrip(self.le_suffix), value))
+                elif key.endswith(self.eq_suffix):
+                    self.eq_rules.append((key.rstrip(self.eq_suffix), value))
+                elif key.endswith(self.in_suffix):
+                    self.in_rules.append((key.rstrip(self.in_suffix), value))
+                elif key.endswith(self.notin_suffix):
+                    self.notin_rules.append(
+                        (key.rstrip(self.notin_suffix), value))
+                else:
+                    warning("Skipping: Invalid Filter operation.")
 
     def get_filter_info(self):
         """
@@ -89,14 +92,17 @@ class AnnotationFilter:
         # the annotation field must therefor be a number
         for field, gt_value in self.gt_rules:
             if not int(annotations.get(field, 0)) > gt_value:
+                print("greater than failed {} {}".format(field, gt_value))
                 return False
 
         for field, ge_value in self.ge_rules:
             if not int(annotations.get(field, 0)) >= ge_value:
+                print("greater equal failed {} {}".format(field, ge_value))
                 return False
 
         for field, lt_value in self.lt_rules:
             if not int(annotations.get(field, lt_value)) < lt_value:
+                print("less than failed {} {}".format(field, lt_value))
                 return False
 
         for field, le_value in self.le_rules:
@@ -251,8 +257,9 @@ class VariantFilter:
         if wrapper_cls.get_var_type(variant) in self.excl_vtypes:
             return False
 
-        if wrapper_cls.get_var_type(variant) not in self.vtypes:
-            return False
+        if self.vtypes:
+            if wrapper_cls.get_var_type(variant) not in self.vtypes:
+                return False
 
         # filter by chromosomal region
         for excl in self.excl_intervals:
@@ -261,13 +268,14 @@ class VariantFilter:
                wrapper_cls.get_var_chrom(variant) == excl.chrom:
                 return False
 
-        for incl in self.intervals:
-            if wrapper_cls.get_var_pos(variant) > incl.start and \
-               wrapper_cls.get_var_pos(variant) < incl.end and \
-               wrapper_cls.get_var_chrom(variant) == incl.chrom:
-                break
-        else:
-            return False
+        if self.intervals:
+            for incl in self.intervals:
+                if wrapper_cls.get_var_pos(variant) > incl.start and \
+                   wrapper_cls.get_var_pos(variant) < incl.end and \
+                   wrapper_cls.get_var_chrom(variant) == incl.chrom:
+                    break
+            else:
+                return False
 
         # all filters passed
         return True

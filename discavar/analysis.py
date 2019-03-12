@@ -75,8 +75,20 @@ class AnalysisControl:
                  job,
                  reports="all"):
 
+        # subtask to run
         self.analysis = analysis
+        if self.analysis == "vcfstats":
+            self.run = self.run_vcfstats
+        elif analysis == "cohort":
+            self.run = self.run_cohort_analysis
+        elif analysis == "versus":
+            self.run = self.run_versus_analysis
+        else:
+            error("Unexpected Subcommand: {}".format(analysis))
 
+        # output options
+        self.base_dir = os.getcwd()
+        self.interactive_report = job.interactive_report
         self.report_dir = "DiscavarReports"
         if job.report_dir:
             self.report_dir = job.report_dir
@@ -85,10 +97,28 @@ class AnalysisControl:
         if job.vcf_dir:
             self.vcf_dir = job.vcf_dir
 
+        if not os.path.exists(self.report_dir):
+            os.mkdir(self.report_dir)
+        else:
+            warning("Report outdir {} exists".format(self.report_dir))
+
+        if not os.path.exists(self.vcf_dir):
+            os.mkdir(self.vcf_dir)
+        else:
+            warning("VCF outdir {} exists".format(self.vcf_dir))
+
+        # isec and subt options
+        self.call_rate = job.call_rate
+        self.call_rate2 = job.call_rate2
+        self.alt_ratio = job.alt_ratio
+        self.alt_ratio2 = job.alt_ratio2
+
+        info("Building Cohorts")
+        os.chdir(self.vcf_dir)
         self.cohorts = []
         if job.input.is_tsv:
             self.cohorts = Cohort.from_tsv(job.input.filepath,
-                                           build_cohort=False)
+                                           build_cohort=True)
 
         elif job.input.is_vcf:
             self.cohorts = Cohort.from_vcf(job.input.filepath)
@@ -97,6 +127,7 @@ class AnalysisControl:
             error("Invalid Input file ending.")
 
         if self.cohorts:
+            info("Applying Filters")
             # set up filters
             var_filter = VariantFilter(
                 min_gq=job.filter_gq,
@@ -113,27 +144,18 @@ class AnalysisControl:
             vcf = VCF(file)
 
             vep_parser = VEPAnnotation(list(vcf.header_iter()))
-            vep_filter = AnnotationFilter(vep_parser,
-                                          IMPACT__in=job.vep_impact,
-                                          CLIN_SIG__in=job.vep_significance,
-                                          Consequence__in=job.vep_consequence)
+            vep_filter = AnnotationFilter(
+                            vep_parser,
+                            IMPACT__in=job.vep_impact,
+                            CLIN_SIG__in=job.vep_significance)
 
             for c in self.cohorts:
                 c.add_filter(var_filter)
                 c.add_filter(vep_filter)
-                c.build()
                 c.apply_filters()
 
-            if self.analysis == "vcfstats":
-                self.run = self.run_vcfstats
-            elif analysis == "cohort":
-                self.run = self.run_cohort_analysis
-            elif analysis == "versus":
-                self.run = self.run_versus_analysis
-            else:
-                error("Unexpected Subcommand: {}".format(analysis))
         else:
-            warning("No Cohorts or VCF specified. Aborting")
+            warning("No Cohorts or VCF specified.")
 
     def run_vcfstats(self):
         info("Gathering VCF Statistics")
@@ -142,7 +164,38 @@ class AnalysisControl:
     def run_cohort_analysis(self):
         info("Starting Cohort Analysis")
         for c in self.cohorts:
-            affected = c.get_
+            os.chdir(self.base_dir)
+
+            # Variant analysis
+            info("Running cohort variant operations on {}".format(c.cohort_id))
+            os.chdir(self.vcf_dir)
+            affected = c.get_affected_sample_ids()
+            unaffected = c.get_unaffected_sample_ids()
+
+            if affected and unaffected:
+                c.healthy_vs_diseased(self.alt_ratio,
+                                      self.call_rate,
+                                      self.alt_ratio2,
+                                      self.call_rate2)
+
+            else:
+                c.intersect(self.alt_ratio, self.call_rate)
+
+            c.write(write_vcf=True,
+                    write_reports=False)
+
+            # Reporting
+            info("Writing reports for {}".format(c.cohort_id))
+            os.chdir(self.base_dir)
+            os.chdir(self.report_dir)
+
+            if not os.path.exists(c.cohort_id):
+                os.mkdir(c.cohort_id)
+
+            os.chdir(c.cohort_id)
+
+            #c.write(write_vcf=False,
+            #        write_reports=True)
 
     def run_versus_analysis(self):
         info("Starting Versus Analysis")
@@ -208,7 +261,7 @@ class Cohort:
 
     @classmethod
     def from_tsv(cls,
-                 tsv_file,
+                 file,
                  build_cohort=True,
                  extra_threads=0):
         """
@@ -216,11 +269,13 @@ class Cohort:
             tsv_file    :   String representing the path to a tsv file.
         """
 
-        info("Loading Cohorts from TSV file {}".format(tsv_file))
+        if not type(file) == InputFile:
+            input_file = InputFile(file)
 
-        input_file = InputFile(tsv_file)
+        info("Loading Cohorts from TSV file {}".format(input_file))
 
         cohorts = []
+
         if input_file.exists and input_file.is_tsv:
             with open(input_file.filepath, "r") as tsvfile:
                 reader = csv.reader(tsvfile, delimiter="\t")
@@ -293,8 +348,12 @@ class Cohort:
                 for cohort in cohorts:
                     cohort.build()
 
-        info("{} Samples were loaded into {} Cohorts"
-             .format(len(used_sids), len(cohorts)))
+        if cohorts:
+            info("{} Samples were loaded into {} Cohorts"
+                 .format(len(used_sids), len(cohorts)))
+        else:
+            warning("No Cohorts were build!")
+
         return cohorts
 
     @classmethod
@@ -406,7 +465,10 @@ class Cohort:
 
         self.apply_filters(filters=self.filters)
 
-    def intersect(self, alt_rate, call_rate=1, sample_groups=[]):
+    def intersect(self,
+                  alt_ratio,
+                  call_rate,
+                  sample_groups=[]):
         """
         Intersect all samples in this cohort
         """
@@ -417,11 +479,13 @@ class Cohort:
             ]
 
         info("Computing intersection of {}".format(sample_groups))
-        self.variants.intersect(sample_groups, alt_rate, call_rate)
-        info("Intersection succesfull. Intersections in {} Records found"
-             .format("TODO"))
+        self.variants.intersect(sample_groups, alt_ratio, call_rate)
 
-    def healthy_vs_diseased(self, healthy_callrate=1, diseased_callrate=1):
+    def healthy_vs_diseased(self,
+                            healthy_ar=1,
+                            healthy_cr=1,
+                            diseased_ar=0,
+                            diseased_cr=0.5):
         """
         Perform a healthy versus diseased analysis of the samples in this
         cohort.
@@ -431,8 +495,10 @@ class Cohort:
 
         self.variants.subtract(minuend=diseased,
                                subtrahend=healthy,
-                               call_rate1=healthy_callrate,
-                               call_rate2=diseased_callrate)
+                               call_rate1=healthy_cr,
+                               alt_ratio1=healthy_ar,
+                               call_rate2=diseased_cr,
+                               alt_ratio2=diseased_ar)
 
     def gene_list(self,
                   outfile=""):
@@ -852,7 +918,11 @@ class Cohort:
         """
         Print reports to files ...
         """
-        pass
+        self.manhattan()
+        self.vtypes_dist()
+        self.qual_dist()
+        self.callrate_vs_qual()
+        self.gene_list()
 
 
 class SingleVCFStatistics:
