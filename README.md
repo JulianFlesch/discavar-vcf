@@ -3,13 +3,10 @@ VCF utility written in Python for calldata and annotation based filtering, inter
 
 # Installation
 
-## GitHub
-
-`pip install -r requirements.txt`
-
 ## PIP
 
 `pip install discavar`
+*NOTE:* Not all required dependencies can be installed automatically using pip
 
 ## Anaconda
 
@@ -26,11 +23,16 @@ For merging different vcf files into single cohort file, `bcftools` is required.
 # Running
 
 From commandline with the executable `discavar`. See `discavar --help for details`
+e.g:
+```
+    discavar cohort --tsv test_input.tsv --report-outdir "Reports" --regions chrom_regions.bed --quality-gt 15 --vep-consequence "HIGH" --vep-significance "benign", "likely_benign"
 
+```
 Interactively form a python shell by importing from discavar. See documentation for details.
 
 e.g.: 
-``` from discavar import Cohort
+``` 
+    from discavar import Cohort
     
     sample_file = "cohorts_input.tsv"
     cohorts = Cohort.from_tsv(sample_file, build_cohorts=True)
