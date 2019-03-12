@@ -120,21 +120,38 @@ class CyVCFWrapper:
         """
         Check if for all vcf files in filenames, an index file exists
         """
-        not_indexed = list(filter(
-                           lambda f: not os.path.exists(f + ".tbi"),
-                           filenames))
+        not_indexed = []
+
+        for file in filenames:
+            index_file = file + ".tbi"
+
+            if not os.path.exists(index_file):
+                not_indexed.append(file)
+
+            # if the index file is older than the vcf, it is removed
+            # because it has to be considered outdated.
+            # the vcf is then reindexed
+            elif not os.path.getmtime(index_file) == os.path.getmtime(file):
+                os.remove(index_file)
+                not_indexed.append(file)
+
         return not_indexed
 
     def _index(self,
                filenames,
                tabix_format=True,
+               reindex=False,
                threads=None):
         """
         Create VCF index files if they don't already exist by calling
         bcftools
         """
+
+        # TODO: other index formats
         index_missing = self._not_indexed(filenames)
-        if index_missing:
+
+        if index_missing or reindex:
+
             # TODO: threading
             for filename in index_missing:
                 command = ["bcftools", "index"]
@@ -309,6 +326,9 @@ class CyVCFWrapper:
         self.vcf = intersected_vcf
         self.vcf.close()
 
+        # reindex the cohort vcf file
+        self._index([self.cohort_filename], reindex=True)
+
     def _variant_subtraction(self,
                              minuend,
                              subtrahend,
@@ -328,7 +348,9 @@ class CyVCFWrapper:
                  minuend_samples,
                  subtrahend_samples,
                  call_rate1,
-                 call_rate2):
+                 alt_ratio1,
+                 call_rate2,
+                 alt_ratio2):
         """
         Subtracts the variantsin subtrahend_samples from the variants in
         minuend_samples.
@@ -383,6 +405,9 @@ class CyVCFWrapper:
         self.cohort_filename = new_filename
         self.vcf = subtracted_vcf
         self.vcf.close()
+
+        # reindex the cohort vcf file
+        self._index([self.cohort_filename], reindex=True)
 
     def get_headers(self):
         """
@@ -513,6 +538,7 @@ class CyVCFWrapper:
         adds a header line and replaces it with the current vcf.
         """
         if filters:
+
             # reopen the vcf iterator
             self.vcf = VCF(self.cohort_filename)
 
@@ -520,6 +546,7 @@ class CyVCFWrapper:
             new_filename = insert_vcf_extension(self.cohort_filename, "temp")
             new_vcf = Writer(new_filename, self.vcf)
 
+            passed_records = 0
             for record in self.vcf:
                 all_filters_passed = True
 
@@ -529,8 +556,10 @@ class CyVCFWrapper:
                         break
 
                 if all_filters_passed:
+                    passed_records += 1
                     new_vcf.write_record(record)
 
+            print("Records passed: {}".format(passed_records))
             # add filter information to the vcf header
             for fltr in filters:
                 new_vcf.add_filter_to_header(fltr.get_filter_info())
@@ -540,6 +569,9 @@ class CyVCFWrapper:
             os.rename(new_filename, self.cohort_filename)
             self.vcf = new_vcf
             self.vcf.close()
+
+            # reindex the cohort vcf file
+            self._index([self.cohort_filename], reindex=True)
 
     def query(self,
               filters=[]):

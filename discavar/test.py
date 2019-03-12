@@ -1,6 +1,6 @@
 from analysis import Cohort
 from annotation_parser import VEPAnnotation
-from filters import AnnotationFilter
+from filters import AnnotationFilter, VariantFilter
 from vcfwrapper import CyVCFWrapper
 import os
 import time
@@ -14,7 +14,7 @@ c = cohorts[0]
 #c.variants = CyVCFWrapper(["cohort_1.vcf.gz"], "")
 c.build()
 
-# t2 = time.time()
+var_filter = VariantFilter(min_gq=20)
 
 ann_parser = VEPAnnotation(c.variants.get_headers())
 
@@ -24,17 +24,19 @@ ann_parser = VEPAnnotation(c.variants.get_headers())
 
 impacts = ["MODERATE", "HIGH", "MODIFIER"]
 
-significance = ["benign", "likely_benign"]
+# significance = ["benign", "likely_benign"]
 
 ann_filter = AnnotationFilter(ann_parser,
 #                             Consequence__in=consequences,
                               IMPACT__in=impacts,
-                              CLIN_SIG__in=significance)
+#                              CLIN_SIG__in=significance
+                              )
 
+c.add_filter(var_filter)
 c.add_filter(ann_filter)
-# c.intersect(0.8, 0.8)
+c.intersect(0.9, 0.9)
 # t3 = time.time()
-# c.apply_filters()
+c.apply_filters()
 # t4 = time.time()
 
 # _ = c.manhattan()
