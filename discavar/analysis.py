@@ -194,11 +194,115 @@ class AnalysisControl:
 
             os.chdir(c.cohort_id)
 
-            #c.write(write_vcf=False,
-            #        write_reports=True)
+            c.write(write_vcf=False,
+                    write_reports=True)
 
     def run_versus_analysis(self):
         info("Starting Versus Analysis")
+        pass
+
+
+class Report:
+    def __init__(self,
+                 cohort,
+                 report_file=""):
+
+        self.cohort = cohort
+        self.report_file = report_file
+        if not report_file:
+            self.report_file = self.cohort.cohort_id + "_report.txt"
+
+        self.report = ""
+
+    def add_line(self, s="", line_prepend=""):
+        """
+        Adds a line to the report.
+        @param s    : a string representing the line that should be added.
+        @param line_prepend     : a string representing an arbitrary set of
+                                  characters that is written before every line
+        """
+        s = line_prepend + s.replace("\n", "\n"+line_prepend)
+        line = "{}\n".format(s)
+        self.report += line
+
+    def write(self):
+        """
+        Save to file
+        """
+        with open(self.report_file, "w") as outfile:
+            outfile.write(self.report)
+
+
+class CohortReport(Report):
+    def gather(self):
+        self.add_line("Cohort Report for {}".format(self.cohort.cohort_id))
+        self.add_line("{} Samples in this Cohort: {}".format(
+                        len(self.cohort.get_sample_ids()),
+                        self.cohort.get_sample_ids())
+                      )
+        self.add_line()
+
+        # output gene List
+        genes = self.cohort.gene_list()
+
+        # Plotting
+        data = self.cohort.to_dataframe()
+        _ = self.cohort.manhattan(df=data)
+        _ = self.cohort.callrate_vs_qual(df=data)
+        _ = self.cohort.qual_dist()
+        _ = self.cohort.dp_dist()
+
+        vtypes = self.cohort.vtypes_dist()
+
+        var_stats = data.describe()
+
+        self.add_line("Variants with Cohort Relevance: {}".format(len(data)))
+        self.add_line("Callrates:")
+        self.add_line("\tMean:\t\t{}".format(var_stats["Callrate"]["mean"]))
+        self.add_line("\tMax:\t\t{}".format(var_stats["Callrate"]["max"]))
+        self.add_line("\tStd:\t\t{}".format(var_stats["Callrate"]["std"]))
+        self.add_line("\t25%:\t\t{}".format(var_stats["Callrate"]["25%"]))
+        self.add_line("\t50%:\t\t{}".format(var_stats["Callrate"]["50%"]))
+        self.add_line("\t75%:\t\t{}".format(var_stats["Callrate"]["75%"]))
+        self.add_line("")
+        self.add_line("Alternate Allele Counts:")
+        self.add_line("\tMean:\t\t{}".format(var_stats["AltAlleles"]["mean"]))
+        self.add_line("\tMax:\t\t{}".format(var_stats["AltAlleles"]["max"]))
+        self.add_line("\tStd:\t\t{}".format(var_stats["AltAlleles"]["std"]))
+        self.add_line("\t25%:\t\t{}".format(var_stats["AltAlleles"]["25%"]))
+        self.add_line("\t50%:\t\t{}".format(var_stats["AltAlleles"]["50%"]))
+        self.add_line("\t75%:\t\t{}".format(var_stats["AltAlleles"]["75%"]))
+        self.add_line()
+        self.add_line("Variant Quality:")
+        self.add_line("\tMean:\t\t{}".format(var_stats["QUAL"]["mean"]))
+        self.add_line("\tMax:\t\t{}".format(var_stats["QUAL"]["max"]))
+        self.add_line("\tStd:\t\t{}".format(var_stats["QUAL"]["std"]))
+        self.add_line("\t25%:\t\t{}".format(var_stats["QUAL"]["25%"]))
+        self.add_line("\t50%:\t\t{}".format(var_stats["QUAL"]["50%"]))
+        self.add_line("\t75%:\t\t{}".format(var_stats["QUAL"]["75%"]))
+        self.add_line()
+        self.add_line("Variant Scores")
+        self.add_line("\tMean:\t\t{}".format(var_stats["SCORE"]["mean"]))
+        self.add_line("\tMin:\t\t{}".format(min(data["SCORE"])))
+        self.add_line("\tMax:\t\t{}".format(var_stats["SCORE"]["max"]))
+        self.add_line("\tStd:\t\t{}".format(var_stats["SCORE"]["std"]))
+        self.add_line("\t25%:\t\t{}".format(var_stats["SCORE"]["25%"]))
+        self.add_line("\t50%:\t\t{}".format(var_stats["SCORE"]["50%"]))
+        self.add_line("\t75%:\t\t{}".format(var_stats["SCORE"]["75%"]))
+        self.add_line()
+        self.add_line("Variant Types")
+        self.add_line(str(vtypes), line_prepend="\t")
+        self.add_line()
+        self.add_line("Genes Affected")
+        unknown_gene_rowname = "unknown"
+        num_affected = len(genes[genes["GENES"] != unknown_gene_rowname])
+        self.add_line("\tTotal number affected:\t\t{}".format(num_affected))
+        self.add_line("\tMost affected Genes:")
+        self.add_line(str(genes.head(n=10)), line_prepend="\t")
+
+
+class VersusReport(Report):
+    def gather(self):
         pass
 
 
@@ -272,7 +376,7 @@ class Cohort:
         if not type(file) == InputFile:
             input_file = InputFile(file)
 
-        info("Loading Cohorts from TSV file {}".format(input_file))
+        info("Loading Cohorts from TSV file {}".format(input_file.filepath))
 
         cohorts = []
 
@@ -521,13 +625,13 @@ class Cohort:
                         field=parser.INFO_COL_NAME)
 
             csq_ann = parser.parse_annotation(ann_string)
-            gene_name = csq_ann.get("gene", "no_gene")
+            gene_name = csq_ann.get("gene", "unknown")
 
             count = genes.get(gene_name, 0) + 1
             genes[gene_name] = count
 
-        df = pd.DataFrame(dict(GENES=list(genes.keys(),
-                               VARIANTS=list(genes.values()))))
+        df = pd.DataFrame(dict(GENES=list(genes.keys()),
+                               VARIANTS=list(genes.values())))
         df.sort_values(by="VARIANTS", inplace=True, ascending=False)
 
         if not outfile:
@@ -537,22 +641,46 @@ class Cohort:
 
         return df
 
-    def report(self,
-               plots=[]):
+    def to_dataframe(self):
         """
-        Collect statistics on the underlying cohort vcf file.
+        Build a Dataframe from the underlying vcf.
+        This is more useful for plotting
         """
-        fields = ["variants/CHROM",
+        fields = ["variants/REF",
+                  "variants/ALT",
+                  "variants/CHROM",
                   "variants/POS",
-                  "variants/DP",
-                  "variants/GT",
-                  "variants/"]
-        excl_fields = ["variants/INFO"]
+                  "variants/QUAL",
+                  "calldata/GT"]
 
-        data = allel.read_vcf(
-                self.variants.cohort_filename,
-                fields=fields,
-                exclude_fields=excl_fields)
+        data = allel.read_vcf(self.variants.cohort_filename,
+                              fields=fields)
+
+        df = pd.DataFrame(dict(CHROM=data["variants/CHROM"],
+                               POS=data["variants/POS"],
+                               QUAL=data["variants/QUAL"]))
+
+        g = allel.GenotypeArray(data["calldata/GT"])
+        gn = g.to_n_alt()
+
+        df["AltAlleles"] = [sum(vars) for vars in gn]
+        df["Callrate"] = [(g.n_samples - list(vars).count(0)) / g.n_samples
+                          for vars in gn]
+
+        df["SCORE"] = df["QUAL"] * df["Callrate"]
+
+        # sort by variant position
+        df.sort_values(["POS"])
+        # sort again by chromosome name
+        df["CHROM"] = df["CHROM"].astype("category")
+        chromnames_ordered = order_chroms(df["CHROM"].unique())
+        df["CHROM"] = df["CHROM"] \
+            .cat.reorder_categories(chromnames_ordered)
+
+        # add an index column
+        df["IDX"] = range(len(df))
+
+        return df
 
     def manhattan(self,
                   df=None,
@@ -564,42 +692,8 @@ class Cohort:
         Manhattan plot or dataframe for the cohort.
         """
 
-        fields = ["variants/REF",
-                  "variants/ALT",
-                  "variants/CHROM",
-                  "variants/POS",
-                  "variants/QUAL",
-                  "calldata/GT"]
-
-        data = allel.read_vcf(self.variants.cohort_filename,
-                              fields=fields)
-
-        if not df:
-            df = pd.DataFrame(dict(CHROM=data["variants/CHROM"],
-                                   POS=data["variants/POS"],
-                                   QUAL=data["variants/QUAL"]))
-
-        # compute p values from binomial test
-        g = allel.GenotypeArray(data["calldata/GT"])
-        n_alt = [g.n_samples - list(vars).count(0) for vars in g.to_n_alt()]
-        p_vals = [stats.binom_test(x, g.n_samples) for x in n_alt]
-        neglog10 = [-math.log10(p) for p in p_vals]
-        # add pvalues for variants to the dataframe
-        df["NEGLOG10"] = neglog10
-
-        # score is computed for records by multiplying quality by r-log10(p)
-        df["SCORE"] = [math.log10(neglog * qual)
-                       for neglog, qual in zip(df.NEGLOG10, df.QUAL)]
-
-        df.sort_values(["POS"])
-        # sort the df by chromosome name
-        df["CHROM"] = df["CHROM"].astype("category")
-        chromnames_ordered = order_chroms(df["CHROM"].unique())
-        df["CHROM"] = df["CHROM"] \
-            .cat.reorder_categories(chromnames_ordered)
-
-        # add an index column
-        df["IDX"] = range(len(df))
+        if df is not None:
+            df = self.to_dataframe()
 
         df_grouped = df.groupby("CHROM")
 
@@ -652,6 +746,7 @@ class Cohort:
         """
         Manhattan plot.
         """
+
         # for determining type from annotation
         parser = VEPAnnotation(self.variants.get_headers())
 
@@ -716,7 +811,7 @@ class Cohort:
             if save_figure:
                 fig.savefig(outfile)
 
-        return vtypes_hist
+        return pd.DataFrame(vtypes_hist)
 
     def callrate_vs_qual(self,
                          df=None,
@@ -724,33 +819,11 @@ class Cohort:
                          ax=None,
                          save_figure=True):
 
-        if not df or \
-           "CALLRATE" not in df.columns or \
-           "QUAL" not in df.columns or \
-           "CHROM" not in df.columns:
-            # Build new dataframe
-            fields = ["variants/CHROM",
-                      "variants/QUAL",
-                      "calldata/GT"]
-
-            data = allel.read_vcf(self.variants.cohort_filename,
-                                  fields=fields)
-
-            g = allel.GenotypeArray(data["calldata/GT"])
-            gn = g.to_n_alt()
-            callrate = [(g.n_samples-list(vars).count(0))/g.n_samples
-                        for vars in gn]
-
-            df = pd.DataFrame(dict(CALLRATE=callrate,
-                                   QUAL=data["variants/QUAL"],
-                                   CHROM=data["variants/CHROM"]))
-            df["CHROM"] = df["CHROM"].astype("category")
-            chromnames_ordered = order_chroms(df["CHROM"].unique())
-            df["CHROM"] = df["CHROM"] \
-                .cat.reorder_categories(chromnames_ordered)
+        if df is not None:
+            df = self.to_dataframe()
 
         df_grouped = df.groupby("CHROM")
-        colors = get_color_map(len(chromnames_ordered))
+        colors = get_color_map(len(df_grouped))
         legend = []
 
         if not outfile:
@@ -766,15 +839,15 @@ class Cohort:
 
         for i, (name, group) in enumerate(df_grouped):
             group.plot(kind="scatter",
-                       x="CALLRATE",
+                       x="Callrate",
                        y="QUAL",
                        color=colors(i),
                        ax=ax)
             legend.append(name)
 
         ax.legend(legend, ncol=3)
-        ax.set_xlabel("negative log10 p-value of cohort relevance")
-        ax.set_ylabel("mean QUAL")
+        ax.set_xlabel("Callrate")
+        ax.set_ylabel("Record mean QUAL")
         ax.set_ymargin(0.3)
         ax.set_title("{} variant relevance and mean quality"
                      .format(self.cohort_id))
@@ -907,22 +980,12 @@ class Cohort:
                 Interactive JuPyter Notebook
         """
         if write_vcf:
-            self._write_vcf()
+            self.variants.to_vcf()
+
         if write_reports:
-            self._write_reports()
-
-    def _write_vcf(self):
-        self.variants.to_vcf()
-
-    def _write_reports(self):
-        """
-        Print reports to files ...
-        """
-        self.manhattan()
-        self.vtypes_dist()
-        self.qual_dist()
-        self.callrate_vs_qual()
-        self.gene_list()
+            report = CohortReport(self)
+            report.gather()
+            report.write()
 
 
 class SingleVCFStatistics:

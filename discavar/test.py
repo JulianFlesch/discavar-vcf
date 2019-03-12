@@ -34,7 +34,7 @@ ann_filter = AnnotationFilter(ann_parser,
 
 c.add_filter(var_filter)
 c.add_filter(ann_filter)
-c.intersect(0.9, 0.9)
+c.intersect(0.5, 0.5)
 # t3 = time.time()
 c.apply_filters()
 # t4 = time.time()

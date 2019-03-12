@@ -9,10 +9,15 @@ setuptools.setup(
     version="0.1",
     author="Julian Flesch",
     author_email="",
+    keywords="bioinformatics ngs-analysis vcf cohort disease causing",
     description="Variant Cohort Analysis from VCFs",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/JulianFlesch/discavar-vcf",
+    project_urls={
+        "Documentation": "https://packaging.python.org/tutorials/distributing-packages/",
+        "Source": "https://github.com/JulianFlesch/discavar-vcf"
+        },
     packages=["discavar"],
     install_requires=[
         "numpy",

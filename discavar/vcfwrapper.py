@@ -559,7 +559,8 @@ class CyVCFWrapper:
                     passed_records += 1
                     new_vcf.write_record(record)
 
-            print("Records passed: {}".format(passed_records))
+            #print("Records passed: {}".format(passed_records))
+
             # add filter information to the vcf header
             for fltr in filters:
                 new_vcf.add_filter_to_header(fltr.get_filter_info())
