@@ -1,8 +1,9 @@
-from cli import error
-from annotation_parser import VEPAnnotation
-from cyvcf2 import VCF, Writer
+from .cli import error
+from .annotation_parser import VEPAnnotation
 
+from cyvcf2 import VCF, Writer
 # wormtable
+# imort wormtable
 import os
 import subprocess
 import shutil

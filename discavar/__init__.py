@@ -1,5 +1,4 @@
-from analysis import Cohort, SingleVCFStatistic
-from vcfwrapper import VCFWrapper
-from filter import VariantFilter, AnnotationFilter
-from annotation_parser import VEPAnnotation
-# implement dependency test
+from .analysis import Cohort, SingleVCFStatistics
+from .vcfwrapper import VCFWrapper
+from .filters import VariantFilter, AnnotationFilter
+from .annotation_parser import VEPAnnotation

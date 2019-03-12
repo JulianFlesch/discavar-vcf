@@ -1,7 +1,7 @@
-from analysis import Cohort
-from annotation_parser import VEPAnnotation
-from filters import AnnotationFilter, VariantFilter
-from vcfwrapper import CyVCFWrapper
+from .analysis import Cohort
+from .annotation_parser import VEPAnnotation
+from .filters import AnnotationFilter, VariantFilter
+from .vcfwrapper import CyVCFWrapper
 import os
 import time
 tsvfile = "/home/julian/Uni/Bachelorarbeit/vcfs/test_input.tsv"

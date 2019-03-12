@@ -1,7 +1,8 @@
-from vcfwrapper import VCFWrapper, get_samples_from_vcf
-from annotation_parser import VEPAnnotation
-from cli import InputFile, error, warning, info
-from filters import VariantFilter, AnnotationFilter
+from .vcfwrapper import VCFWrapper, get_samples_from_vcf
+from .annotation_parser import VEPAnnotation
+from .cli import InputFile, error, warning, info
+from .filters import VariantFilter, AnnotationFilter
+
 from cyvcf2 import VCF
 from scipy import stats, mean
 import pandas as pd
@@ -352,7 +353,9 @@ class Cohort:
         self.extra_threads = extra_threads
 
     @classmethod
-    def from_vcf(cls, vcf_file):
+    def from_vcf(cls,
+                 vcf_file,
+                 use_database=False):
         """
         Instantiate a Cohort from a single multisample vcf file.
         Assumes the vcf_file to contain a single cohort.
@@ -367,7 +370,8 @@ class Cohort:
     def from_tsv(cls,
                  file,
                  build_cohort=True,
-                 extra_threads=0):
+                 extra_threads=0,
+                 use_database=False):
         """
         Instantiate a Cohort from a tsv file.
             tsv_file    :   String representing the path to a tsv file.
@@ -603,6 +607,13 @@ class Cohort:
                                alt_ratio1=healthy_ar,
                                call_rate2=diseased_cr,
                                alt_ratio2=diseased_ar)
+
+    def versus(self,
+               cohort):
+        """
+        Versus Analysis of two cohort objects
+        """
+
 
     def gene_list(self,
                   outfile=""):

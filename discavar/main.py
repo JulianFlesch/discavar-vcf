@@ -1,10 +1,8 @@
-#!/home/julian/Uni/Bachelorarbeit/ba-venv/bin/python3
-
 """
     DISCAVAR: VCF FILE ANALYTICS
     ============================
 
-    An variation analysis tool developed as part of a bachelor thesis at the 
+    An variation analysis tool developed as part of a bachelor thesis at the
     University of Tuebingen.
 
     Contacts:
@@ -18,13 +16,13 @@
     Thesis:             Discavar-VCF detecting disease causing variant
                         in familial NGS Data with Nextflow pipelines.
 
-    Documentation:      TODO
+    Documentation:      https://github.com/JulianFlesch/discavar-vcf
 
-    Licence:            TODO
+    Licence:            OSI Approved MIT License
 """
 
-from cli import parse_args
-from analysis import AnalysisControl
+from discavar.cli import parse_args
+from discavar.analysis import AnalysisControl
 
 
 def main():
@@ -43,5 +41,4 @@ def main():
 # for testing
 if __name__ == "__main__":
     main()
-
     # TODO: deployed version should be called via a startscript in bin/

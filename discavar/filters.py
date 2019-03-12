@@ -1,5 +1,5 @@
+from .cli import warning, error, Description
 from cyvcf2 import VCF
-from cli import warning, error, Description
 
 
 # static method for applying a check multiple samples
