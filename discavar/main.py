@@ -18,7 +18,7 @@
 
     Documentation:      https://github.com/JulianFlesch/discavar-vcf
 
-    Licence:            OSI Approved MIT License
+    Licence:            MIT License (OSI Approved)
 """
 
 from discavar.cli import parse_args

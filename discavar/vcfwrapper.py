@@ -60,7 +60,7 @@ class VCFWrapper:
     @classmethod
     def wrapper_factory(cls,
                         files,
-                        cohort,
+                        cohort_filename,
                         use_database=False,
                         intersections=[],
                         filters=[],
@@ -76,10 +76,8 @@ class VCFWrapper:
             pass
 
         else:
-            return CyVCFWrapper(files,
-                                cohort,
-                                intersections,
-                                filters)
+            return CyVCFWrapper(files=files,
+                                merged_filename=cohort_filename)
 
 
 class CyVCFWrapper:
@@ -99,7 +97,7 @@ class CyVCFWrapper:
 
         # load single vcf file, assume it contains multiple samples
         if len(self.filenames) == 1:
-            self.cohort_filename = os.path.abspath(self.filenames[0])
+            shutil.copyfile(self.filenames[0], self.cohort_filename)
 
         # merge multiple input vcf files
         else:

@@ -94,19 +94,22 @@ class AnalysisControl:
         if job.report_dir:
             self.report_dir = job.report_dir
 
-        self.vcf_dir = "Discavar"
-        if job.vcf_dir:
-            self.vcf_dir = job.vcf_dir
-
         if not os.path.exists(self.report_dir):
             os.mkdir(self.report_dir)
         else:
             warning("Report outdir {} exists".format(self.report_dir))
 
-        if not os.path.exists(self.vcf_dir):
-            os.mkdir(self.vcf_dir)
-        else:
-            warning("VCF outdir {} exists".format(self.vcf_dir))
+        if not self.analysis == "vcfstats":
+            self.vcf_dir = "Discavar"
+            if job.vcf_dir:
+                self.vcf_dir = job.vcf_dir
+
+            if not os.path.exists(self.vcf_dir):
+                os.mkdir(self.vcf_dir)
+            else:
+                warning("VCF outdir {} exists".format(self.vcf_dir))
+
+            os.chdir(self.vcf_dir)
 
         # isec and subt options
         self.call_rate = job.call_rate
@@ -114,53 +117,67 @@ class AnalysisControl:
         self.alt_ratio = job.alt_ratio
         self.alt_ratio2 = job.alt_ratio2
 
-        info("Building Cohorts")
-        os.chdir(self.vcf_dir)
         self.cohorts = []
         if job.input.is_tsv:
             self.cohorts = Cohort.from_tsv(job.input.filepath,
                                            build_cohort=True)
 
         elif job.input.is_vcf:
-            self.cohorts = Cohort.from_vcf(job.input.filepath)
+            self.cohorts = [Cohort.from_vcf("discavar-cohort",
+                                            job.input.filepath)]
 
         else:
             error("Invalid Input file ending.")
 
         if self.cohorts:
-            info("Applying Filters")
-            # set up filters
-            var_filter = VariantFilter(
-                min_gq=job.filter_gq,
-                min_mq=job.filter_mq,
-                min_dp=job.filter_dp,
-                intervals=job.filter_regions,
-                excl_intervals=job.filter_excl_regions,
-                vtypes=job.filter_vtypes,
-                excl_vtypes=job.filter_excl_vtypes,
-                perc_pass=job.filter_perc_pass)
 
-            # set up vep filter
-            file = self.cohorts[0].vcf_file
-            vcf = VCF(file)
+            # only apply filters when cohort analysis is selected
+            if self.analysis == "cohort":
+                info("Applying Filters")
+                # set up filters
+                var_filter = VariantFilter(
+                    min_gq=job.filter_gq,
+                    min_mq=job.filter_mq,
+                    min_dp=job.filter_dp,
+                    intervals=job.filter_regions,
+                    excl_intervals=job.filter_excl_regions,
+                    vtypes=job.filter_vtypes,
+                    excl_vtypes=job.filter_excl_vtypes,
+                    perc_pass=job.filter_perc_pass)
 
-            vep_parser = VEPAnnotation(list(vcf.header_iter()))
-            vep_filter = AnnotationFilter(
-                            vep_parser,
-                            IMPACT__in=job.vep_impact,
-                            CLIN_SIG__in=job.vep_significance)
+                # set up vep filter
+                file = self.cohorts[0].vcf_file
+                vcf = VCF(file)
 
-            for c in self.cohorts:
-                c.add_filter(var_filter)
-                c.add_filter(vep_filter)
-                c.apply_filters()
+                vep_parser = VEPAnnotation(list(vcf.header_iter()))
+                vep_filter = AnnotationFilter(
+                                vep_parser,
+                                IMPACT__in=job.vep_impact,
+                                CLIN_SIG__in=job.vep_significance)
+
+                for c in self.cohorts:
+                    c.add_filter(var_filter)
+                    c.add_filter(vep_filter)
+                    c.apply_filters()
 
         else:
             warning("No Cohorts or VCF specified.")
 
     def run_vcfstats(self):
         info("Gathering VCF Statistics")
-        pass
+        for c in self.cohorts:
+            # Reporting
+            info("Writing reports for {}".format(c.cohort_id))
+            os.chdir(self.base_dir)
+            os.chdir(self.report_dir)
+
+            if not os.path.exists(c.cohort_id):
+                os.mkdir(c.cohort_id)
+
+            os.chdir(c.cohort_id)
+
+            c.write(write_vcf=False,
+                    write_reports=True)
 
     def run_cohort_analysis(self):
         info("Starting Cohort Analysis")
@@ -354,17 +371,41 @@ class Cohort:
 
     @classmethod
     def from_vcf(cls,
-                 vcf_file,
+                 cohort_id,
+                 file,
+                 outfile="",
                  use_database=False):
         """
         Instantiate a Cohort from a single multisample vcf file.
         Assumes the vcf_file to contain a single cohort.
             vcf_file    :   String representing the path to a vcf_file
         """
-        cohort = cls()
-        cohort.variants = None
 
-        return
+        if not type(file) == InputFile:
+            file = InputFile(file)
+
+        info("Loading VCF {}".format(file.filepath))
+        if file.exists and file.is_vcf:
+
+            cohort = cls(cohort_id=cohort_id)
+            variants = VCFWrapper.wrapper_factory(
+                                    files=[file.filepath],
+                                    cohort_filename=cohort.vcf_file,
+                                    use_database=use_database)
+            cohort.variants = variants
+
+            sample_ids = variants.get_sample_names()
+            for sid in sample_ids:
+                cohort.add_sample(Sample(sample_id=sid,
+                                         vcf_file=file.filepath,
+                                         sex="NA",
+                                         affected=False))
+
+            return cohort
+
+        else:
+            warning("Invalid TSV input file.")
+            return None
 
     @classmethod
     def from_tsv(cls,
@@ -613,7 +654,7 @@ class Cohort:
         """
         Versus Analysis of two cohort objects
         """
-
+        pass
 
     def gene_list(self,
                   outfile=""):
@@ -785,6 +826,8 @@ class Cohort:
             vtypes_hist[var_type] = chrom_hist
 
         chroms = order_chroms(list(chroms))
+        print(vtypes_hist)
+        print(chroms)
 
         if not only_data:
             if not outfile:

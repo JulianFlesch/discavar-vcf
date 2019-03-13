@@ -15,7 +15,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/JulianFlesch/discavar-vcf",
     project_urls={
-        "Documentation": "https://packaging.python.org/tutorials/distributing-packages/",
+        "Documentation": "https://github.com/JulianFlesch/discavar-vcf",
         "Source": "https://github.com/JulianFlesch/discavar-vcf"
         },
     packages=["discavar"],
