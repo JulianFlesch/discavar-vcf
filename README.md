@@ -5,16 +5,11 @@ VCF utility written in Python for calldata and annotation based filtering, inter
 
 ## PIP
 
-`pip install discavar`
+To install DisCaVar, run the following from the directory:
+`python setup.py build sdist`
+`pip install dist/discavar-vcf-0.1.tar.gz`
+
 *NOTE:* Not all required dependencies can be installed automatically using pip
-
-## Anaconda
-
-TODO
-
-## Dockerhub
-
-TODO
 
 # Dependencies
 
