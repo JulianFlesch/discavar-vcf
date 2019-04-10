@@ -25,7 +25,12 @@ class AnnotationFilter:
     """
     def __init__(self,
                  annotation_parser,
+                 perc_pass=0.9,
                  **kwargs):
+
+        # perc_pass describes what percentage of variants in a record
+        # have to pass this filter
+        self.perc_pass = perc_pass
 
         # keyword args have to end in exactly one of these:
         self.gt_suffix = "__gt"
@@ -80,60 +85,99 @@ class AnnotationFilter:
         return {"ID": filter_id, "Description": filter_description}
 
     def passes(self, record, wrapper_cls):
-        # get the annotation string from the record returned by a vcf_wrapper
+
+        # get the raw annotation string for the record from the vcf_wrapper
         ann_string = wrapper_cls.get_var_info(
                         record,
                         field=self.annotation_parser.INFO_COL_NAME)
-        # parse the annotation to obtain a dictionary object
-        annotations = self.annotation_parser.parse_annotation(ann_string)
+
+        # parse the annotation string to obtain dictionary representations
+        # of <vep-annotation-field>: <vep-annotation> pairs as a list
+        record_annotations = self.annotation_parser \
+            .parse_annotation(ann_string)
+
+        # use only the first annotation for now.
+        # TODO: Change to check the annotation for all variants
+        # in a record and use self.perc_pass
+        var_annotation = record_annotations[0]
 
         # check for the satisfaction of all specified rules
         # greater than(gt), less than(lt), ... rules are for numeric operations
         # the annotation field must therefor be a number
         for field, gt_value in self.gt_rules:
-            if not int(annotations.get(field, 0)) > gt_value:
+            if not int(var_annotation.get(field, 0)) > gt_value:
                 print("greater than failed {} {}".format(field, gt_value))
                 return False
 
         for field, ge_value in self.ge_rules:
-            if not int(annotations.get(field, 0)) >= ge_value:
+            if not int(var_annotation.get(field, 0)) >= ge_value:
                 print("greater equal failed {} {}".format(field, ge_value))
                 return False
 
         for field, lt_value in self.lt_rules:
-            if not int(annotations.get(field, lt_value)) < lt_value:
+            if not int(var_annotation.get(field, lt_value)) < lt_value:
                 print("less than failed {} {}".format(field, lt_value))
                 return False
 
         for field, le_value in self.le_rules:
-            if not int(annotations.get(field, lt_value+1)) <= le_value:
+            if not int(var_annotation.get(field, lt_value+1)) <= le_value:
                 return False
 
         # For "eq", "in" and "notin" rules the annotation field is expected to
         # potentially have more than one value(="SUB_FIELD").
         # The annotation parser has a subfield-separator value, by which the
         # annotation can be further divided.
-        for field, eq_value in self.eq_rules:
-            for ann in annotations.get(field, "").split(
-                 self.annotation_parser.SUB_SEPARATOR):
-                if ann == eq_value:
-                    break
-            else:
-                return False
+        for field, eq_values in self.eq_rules:
+
+            ann_values = var_annotation.get(field, "")
+
+            # check rules only if there is an annotation
+            if ann_values:
+
+                # check if the annotation is an iterable
+                if not isinstance(ann_values, list):
+
+                    # check for subcolumns in the annotation string
+                    ann_values = ann_values.split(
+                        self.annotation_parser.SUB_SEPARATOR)
+
+                if ann_values:
+                    for ann in ann_values:
+                        if ann in eq_values:
+                            break
+                    else:
+                        return False
 
         for field, in_values in self.in_rules:
-            for ann in annotations.get(field, "").split(
-                 self.annotation_parser.SUB_SEPARATOR):
-                if ann in in_values:
-                    break
-            else:
-                return False
+
+            ann_values = var_annotation.get(field, "")
+
+            if ann_values:
+
+                if not isinstance(ann_values, list):
+                    ann_values = ann_values.split(
+                        self.annotation_parser.SUB_SEPARATOR)
+
+                for ann in ann_values:
+                    if ann in in_values:
+                        break
+                else:
+                    return False
 
         for field, notin_values in self.notin_rules:
-            for ann in annotations.get(field, "").split(
-                 self.annotation_parser.SUB_SEPARATOR):
-                if ann in notin_values:
-                    return False
+
+            ann_values = var_annotation.get(field, "")
+
+            if ann_values:
+
+                if not isinstance(ann_values, list):
+                    ann_values = ann_values.split(
+                        self.annotation_parser.SUB_SEPARATOR)
+
+                    for ann in ann_values:
+                        if ann in notin_values:
+                            print("notin failed")
+                            return False
 
         # Variant has passed all filters!
         return True
@@ -242,16 +286,20 @@ class VariantFilter:
     def passes(self, variant, wrapper_cls, annotations=None):
 
         # genotype quality filter
-        if wrapper_cls.get_var_gq(variant) < self.min_gq:
+        if int(wrapper_cls.get_var_gq(variant)) < self.min_gq:
             return False
 
         # read depth filter
-        if wrapper_cls.get_var_info(variant, field="DP") < self.min_dp:
-            return False
+        dp_field = wrapper_cls.get_var_info(variant, field="DP")
+        if dp_field:
+            if int(dp_field) < self.min_dp:
+                return False
 
         # read mapping quality
-        if wrapper_cls.get_var_info(variant, field="MQ") < self.min_mq:
-            return False
+        mq_field = wrapper_cls.get_var_info(variant, field="MQ")
+        if mq_field:
+            if int(mq_field) < self.min_mq:
+                return False
 
         # filter by variant type
         if wrapper_cls.get_var_type(variant) in self.excl_vtypes:

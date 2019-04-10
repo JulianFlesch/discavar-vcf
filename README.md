@@ -23,11 +23,19 @@ For merging different vcf files into single cohort file, `bcftools` is required.
 # Running
 
 From commandline with the executable `discavar`. See `discavar --help for details`
-e.g:
-```
-    discavar cohort --tsv test_input.tsv --report-outdir "Reports" --regions chrom_regions.bed --quality-gt 15 --vep-consequence "HIGH" --vep-significance "benign", "likely_benign"
 
+
+Overview statistics for a vcf file:
 ```
+    discavar vcfstats --vcf sample_vcf.ann.vcf.gz
+```
+
+
+Cohort Analysis with `cohort` analysis task:
+```
+    discavar cohort --tsv test_input.tsv --report-outdir "Reports" --regions chrom_regions.bed --quality-gt 20 --vep-consequence "HIGH" --vep-significance "unknown_significance", "pathogenic", "risk_factor"
+```
+
 Interactively form a python shell by importing from discavar. See documentation for details.
 
 e.g.: 

@@ -97,7 +97,8 @@ class CyVCFWrapper:
 
         # load single vcf file, assume it contains multiple samples
         if len(self.filenames) == 1:
-            shutil.copyfile(self.filenames[0], self.cohort_filename)
+            if not self.filenames[0] == self.cohort_filename:
+                shutil.copyfile(self.filenames[0], self.cohort_filename)
 
         # merge multiple input vcf files
         else:
@@ -188,10 +189,13 @@ class CyVCFWrapper:
         # extra options for bcftools
         # output file
         command += ["-o", outfile]
+
         # output type should be compressed vcf: .vcf.gzip
         command += ["-O", "z"]
+
         # Genotypes at missing types should be considerd 0/0 (Reference)
         command += ["-0"]
+
         # info field rules
         # 1. merge the VEP annotations by joining
         command += ["-i", "CSQ:join"]
@@ -311,6 +315,7 @@ class CyVCFWrapper:
         call_rate = max(min(1, call_rate), 0)
 
         for records in zip(*vcfs):
+
             # records[0] is the entire record with all samples.
             # records[1:] each only contain only information samples
             # from one group
@@ -353,15 +358,15 @@ class CyVCFWrapper:
         """
         Subtracts the variantsin subtrahend_samples from the variants in
         minuend_samples.
-            minuend_samples     :   list of sample ids that are to represent
-                                    the minuend of this operation
-            subtrahend_samples  :   list of sample ids that are to be
-                                    subtracted from the first group of samples
-            call_rate1          :   percentage of samples in group1 that have
-                                    to intersect.
-            call_rate2          :   percentage of samples in group2 that can
-                                    at most share the genotype of the samples
-                                    in group1
+        @param minuend_samples     : list of sample ids that are to represent
+                                     the minuend of this operation
+        @param subtrahend_samples  : list of sample ids that are to be
+                                     subtracted from the first group of samples
+        @param call_rate1          : percentage of samples in group1 that have
+                                     to intersect.
+        @param call_rate2          : percentage of samples in group2 that can
+                                     at most share the genotype of the samples
+                                     in group1
         """
 
         # make the entire record available in each iteration step
@@ -393,6 +398,7 @@ class CyVCFWrapper:
         call_rate2 = min(1, call_rate2)
 
         for orig, minu, subt in zip(*vcfs):
+
             # orig is the entire record with both minuend and subtrahend
             # samples
             # rminu is the record with only minuend samples
@@ -541,7 +547,8 @@ class CyVCFWrapper:
             # reopen the vcf iterator
             self.vcf = VCF(self.cohort_filename)
 
-            # new file where only the records that pass all filters are written to
+            # new file where only the records that pass all filters are written
+            # to
             new_filename = insert_vcf_extension(self.cohort_filename, "temp")
             new_vcf = Writer(new_filename, self.vcf)
 
@@ -558,7 +565,7 @@ class CyVCFWrapper:
                     passed_records += 1
                     new_vcf.write_record(record)
 
-            #print("Records passed: {}".format(passed_records))
+            print("Records passed: {}".format(passed_records))
 
             # add filter information to the vcf header
             for fltr in filters:

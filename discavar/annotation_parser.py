@@ -1,3 +1,4 @@
+from .cli import warning
 import re
 
 
@@ -25,7 +26,11 @@ class VEPAnnotation:
             CLIN_SIG|SOMATIC|PHENO|PUBMED|MOTIF_NAME|MOTIF_POS|
             HIGH_INF_POS|MOTIF_SCORE_CHANGE
     """
-    # the separator for fields of the annotation string
+
+    # separator for fields in the INFO column of a vcf file
+    COLUMN_SEPARATOR = ","
+
+    # the separator for fields of a VEP Annotation
     SEPARATOR = "|"
     SUB_SEPARATOR = "&"
     INFO_COL_NAME = "CSQ"
@@ -33,6 +38,9 @@ class VEPAnnotation:
     def __init__(self, vcf_headers):
         self.vep_annotated = False
         self.fields = self.get_ann_fields(vcf_headers)
+
+        if not self.vep_annotated:
+            warning("VCF not VEP Annotated!")
 
     def get_ann_fields(self, headers):
         """
@@ -46,11 +54,14 @@ class VEPAnnotation:
 
             # cyvcf header representation
             if header.type == "INFO":
+
                 # get a python dict with all info fields in the header line
                 info = header.info()
                 info_id = info.get("ID", "")
                 description = info.get("Description", "")
+
                 if description and info_id == "CSQ":
+
                     # find startposition of the fields description
                     fields_pattern = re.compile(
                         r'(\w+' + re.escape(self.SEPARATOR) + r')+\w+')
@@ -59,19 +70,53 @@ class VEPAnnotation:
                         start = match.start()
                         fields = description[start:].split(self.SEPARATOR)
                         self.vep_annotated = True
+
                         return fields
         return None
 
     def parse_annotation(self, ann_string, separator=""):
         """
-        Returns a dictionary of (fieldname, variant_annotation) pairs for
-        the VEP annotation of a variant
-        """
-        if not separator:
-            separator = self.SEPARATOR
+        Creates a dictionary with(fieldname, variant_annotation)
+        pairs for the VEP annotation of a every variant in a given record
+        and returns them as a list.
 
-        values = ann_string.split(separator)
-        annotations = dict(zip(self.fields, values))
-        #for k, ann in annotations:
-        #    annotations[k] = ann.split(self.SUB_SEPARATOR)
-        return annotations
+        @param ann_string   : A string representing the VEP Annotation Column
+                              of a record in a VCF file
+        @param separator    : A string representing the character used to
+                              separate annotation fields for a variant.
+        """
+        if self.vep_annotated:
+
+            # check if a different seperator should be used
+            if not separator:
+                separator = self.SEPARATOR
+
+            # fetch the annotations for every separate variant in a record
+            record_annotations = ann_string.split(self.COLUMN_SEPARATOR)
+
+            # list to save the dict with <field>: <value> pairs for
+            # each variant
+            var_annotations = []
+
+            for var_annotation_string in record_annotations:
+
+                # obtain the values for each VEP Annotation Field 
+                # (see class comment)
+                var_annotation_values = ann_string.split(separator)
+
+                # construct a dictionary object for each variant annotation
+                var_annotation = dict()
+
+                for k, ann in zip(self.fields, var_annotation_values):
+
+                    # check if the annotation value is a list of values
+                    if ann.find(self.SUB_SEPARATOR) != -1:
+                        var_annotation[k] = ann.split(self.SUB_SEPARATOR)
+                    else:
+                        var_annotation[k] = ann
+
+                var_annotations.append(var_annotation)
+
+            return var_annotations
+
+        return None

@@ -425,6 +425,11 @@ def parse_args(args=None):
             dest="vcf_dir", default="Discavar", action=OutdirAction,
             help="Output Directory for VCF files.")
         output_group.add_argument(
+            "--vcf-copy", type=str, nargs=1,
+            dest="vcf_copy", default="",
+            help="Do not modify the input VCF and operate on a copy " +
+                 "instead. The copy will be placed in the VCF outdir.")
+        output_group.add_argument(
             "--interactive", action="store_true", dest="interactive_report",
             default=False,
             help="Export a JuPyter notebook with filtered vcf data. " +
